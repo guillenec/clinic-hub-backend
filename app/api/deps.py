@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_db
 from app.models.user import User
+from app.models.doctor import Doctor
+from app.models.patient import Patient
 
 bearer = HTTPBearer(auto_error=True)
 
@@ -45,3 +47,17 @@ def require_roles(*roles: RoleEnum):
         return user
     return _guard
 
+# --- Obtener IDs vinculados ---
+async def get_linked_doctor_id(user: User, db: AsyncSession) -> str | None:
+    if user.role != user.role.doctor:  # comparando enum con string puede fallar, mejor:
+        pass
+    if str(user.role) != "doctor":
+        return None
+    res = await db.execute(select(Doctor.id).where(Doctor.user_id == user.id))
+    return res.scalar_one_or_none()
+
+async def get_linked_patient_id(user: User, db: AsyncSession) -> str | None:
+    if str(user.role) != "patient":
+        return None
+    res = await db.execute(select(Patient.id).where(Patient.user_id == user.id))
+    return res.scalar_one_or_none()

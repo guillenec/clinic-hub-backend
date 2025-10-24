@@ -3,5 +3,7 @@ from app.models.clinic import Clinic
 from app.models.doctor import Doctor
 from app.models.patient import Patient
 from app.models.links import ClinicDoctor, ClinicPatient
-from app.models.appointment import Appointment  # 👈 nuevo
+from app.models.appointment import Appointment 
+from app.models.clinical import Consultation, Medication  # 👈 nuevo
+
 

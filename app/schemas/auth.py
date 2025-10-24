@@ -27,7 +27,6 @@ class UserOut(BaseModel):
     email: EmailStr
     role: Role
     is_active: bool
-
     class Config:
         from_attributes = True
 
@@ -48,6 +47,8 @@ class LoginOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+    linkedDoctorId: str | None = None
+    linkedPatientId: str | None = None
 
 
 

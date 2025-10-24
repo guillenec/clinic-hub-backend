@@ -8,8 +8,8 @@ from app.core.security import (
     generate_2fa_secret, totp_uri_from_secret, verify_totp, qr_png_base64_from_text
 )
 from app.models.user import User, RoleEnum
-from app.schemas.auth import RegisterIn, LoginIn, TokenOut, UserOut, TwoFASetupOut, TwoFAVerifyIn, TwoFADisableIn
-from app.api.deps import get_current_user
+from app.schemas.auth import RegisterIn, LoginIn, TokenOut, UserOut, TwoFASetupOut, TwoFAVerifyIn, TwoFADisableIn, LoginOut
+from app.api.deps import get_current_user, get_linked_doctor_id, get_linked_patient_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -30,7 +30,7 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
     await db.refresh(user)
     return user
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=LoginOut)
 async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == payload.email.lower()))
     user = result.scalar_one_or_none()
@@ -40,16 +40,26 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Usuario inactivo")
 
-    # si 2FA está activo, requerimos OTP
+    # Si 2FA está activo, validar otp (esto ya lo tenías hecho; mantén la misma lógica)
     if user.is_2fa_enabled:
         if not payload.otp:
-            # opción simple: 401 y mensaje claro
             raise HTTPException(status_code=401, detail="Se requiere OTP (2FA) para este usuario")
+        from app.core.security import verify_totp
         if not user.twofa_secret or not verify_totp(payload.otp, user.twofa_secret):
             raise HTTPException(status_code=401, detail="OTP inválido")
 
     token = create_access_token(subject=user.id, extra={"role": user.role.value})
-    return TokenOut(access_token=token)
+
+    # 🔗 perfiles vinculados (si existen)
+    linked_doc_id = await get_linked_doctor_id(user, db)
+    linked_pat_id = await get_linked_patient_id(user, db)
+
+    return LoginOut(
+        access_token=token,
+        user=UserOut.model_validate(user),
+        linkedDoctorId=linked_doc_id,
+        linkedPatientId=linked_pat_id,
+    )
 
 # ---------- 2FA FLOW ----------
 @router.post("/2fa/setup", response_model=TwoFASetupOut)
@@ -104,6 +114,18 @@ async def twofa_disable(
     return {"ok": True}
 
 
-@router.get("/me", response_model=UserOut)
-async def me(current_user: User = Depends(get_current_user)):
-    return current_user
+# @router.get("/me", response_model=UserOut)
+# async def me(current_user: User = Depends(get_current_user)):
+#     return current_user
+
+@router.get("/me", response_model=LoginOut)
+async def me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    token = create_access_token(subject=current_user.id, extra={"role": current_user.role.value})
+    linked_doc_id = await get_linked_doctor_id(current_user, db)
+    linked_pat_id = await get_linked_patient_id(current_user, db)
+    return LoginOut(
+        access_token=token,
+        user=UserOut.model_validate(current_user),
+        linkedDoctorId=linked_doc_id,
+        linkedPatientId=linked_pat_id,
+    )
