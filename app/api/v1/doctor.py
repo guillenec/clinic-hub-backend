@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -34,16 +34,17 @@ async def create_doctor(payload: DoctorCreate, db: AsyncSession = Depends(get_db
     return DoctorOut.from_model(d)
 
 @router.get("/", response_model=list[DoctorOut])
-async def list_doctors(clinic_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def list_doctors(
+    clinic_id: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(Doctor).options(selectinload(Doctor.clinics))
     if clinic_id:
-        q = (
-            select(Doctor)
-            .join(ClinicDoctor).where(ClinicDoctor.clinic_id == clinic_id)
-            .options(selectinload(Doctor.clinics))
-        )
-    else:
-        q = select(Doctor).options(selectinload(Doctor.clinics))
-    res = await db.execute(q)
+        q = q.join(ClinicDoctor).where(ClinicDoctor.clinic_id == clinic_id)
+        
+    res = await db.execute(q.offset(offset).limit(limit))
     docs = res.scalars().unique().all()
     return [DoctorOut.from_model(d) for d in docs]
 

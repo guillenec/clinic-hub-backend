@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -34,7 +34,12 @@ async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_
     return PatientOut.from_model(pt)
 
 @router.get("/", response_model=list[PatientOut], dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
-async def list_patients(clinic_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def list_patients(
+    clinic_id: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
     if clinic_id:
         q = (
             select(Patient)
@@ -43,7 +48,8 @@ async def list_patients(clinic_id: str | None = None, db: AsyncSession = Depends
         )
     else:
         q = select(Patient).options(selectinload(Patient.clinics))
-    res = await db.execute(q)
+
+    res = await db.execute(q.offset(offset).limit(limit))
     pts = res.scalars().unique().all()
     return [PatientOut.from_model(p) for p in pts]
 

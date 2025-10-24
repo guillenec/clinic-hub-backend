@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.core.db import get_db
 from app.api.deps import get_current_user, require_roles
@@ -282,3 +282,40 @@ async def delete_appointment(id: str, current: User = Depends(get_current_user),
     await db.execute(delete(Appointment).where(Appointment.id == id))
     await db.commit()
     return
+
+# ---------- availability ----------
+@router.get("/availability", dependencies=[Depends(get_current_user)])
+async def availability(
+    doctor_id: str = Query(...),
+    clinic_id: str = Query(...),
+    date: datetime = Query(..., description="YYYY-MM-DD"),
+    slot_minutes: int = Query(30, ge=5, le=180),
+    db: AsyncSession = Depends(get_db),
+):
+    # normalizo a comienzo/fin del día
+    start = datetime(date.year, date.month, date.day, 0, 0, 0)
+    end   = datetime(date.year, date.month, date.day, 23, 59, 59)
+
+    q = select(Appointment.starts_at, Appointment.ends_at).where(
+        Appointment.doctor_id == doctor_id,
+        Appointment.clinic_id == clinic_id,
+        Appointment.status != "cancelled",
+        Appointment.starts_at < end,
+        Appointment.ends_at > start,
+    )
+    res = await db.execute(q)
+    busy = sorted([(row[0], row[1]) for row in res.all()])  # lista de tuplas
+
+    slots = []
+    cur = start
+    step = timedelta(minutes=slot_minutes)
+
+    while cur + step <= end:
+        s, e = cur, cur + step
+        # descartar solapados
+        if not any((s < b_e and e > b_s) for (b_s, b_e) in busy):
+            slots.append({"start": s, "end": e})
+        cur = e
+
+    return slots
+
