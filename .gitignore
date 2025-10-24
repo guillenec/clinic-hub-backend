@@ -1,0 +1,15 @@
+# Entornos Virtuales (¡CRUCIAL!)
+.env
+.env.local
+/venv
+/.venv
+
+# Directorios de Python
+__pycache__/
+*.pyc
+
+# Directorios de Base de Datos/Migraciones
+/alembic/versions  # Opcional, si no quieres subir archivos de versiones de migración específicos
+
+# Dependencias (instaladas localmente)
+/node_modules
