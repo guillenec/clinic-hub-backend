@@ -12,7 +12,6 @@ class ConsultationCreate(BaseModel):
     diagnosis: str
     notes: Optional[str] = None
 
-    # --- Consultations ---
 class ConsultationUpdate(BaseModel):
     patient_id: str | None = None
     doctor_id: str | None = None
@@ -63,5 +62,57 @@ class MedicationOut(BaseModel):
     status: MedStatus
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    class Config:
+        from_attributes = True
+
+# ---------- LABS ----------
+LabStatus = Literal["pending", "complete"]
+
+class LabCreate(BaseModel):
+    patient_id: str
+    test: str
+    date: Optional[datetime] = None
+    result: Optional[str] = ""
+    status: LabStatus = "pending"
+
+class LabUpdate(BaseModel):
+    test: Optional[str] = None
+    date: Optional[datetime] = None
+    result: Optional[str] = None
+    status: Optional[LabStatus] = None
+
+class LabOut(BaseModel):
+    id: str
+    patient_id: str
+    test: str
+    date: datetime
+    result: str
+    status: LabStatus
+    class Config:
+        from_attributes = True
+
+# ---------- VITALS ----------
+VitalStatus = Literal["Normal", "Alto", "Bajo"]
+
+class VitalCreate(BaseModel):
+    patient_id: str
+    metric: str
+    value: str
+    date: Optional[datetime] = None
+    status: Optional[VitalStatus] = None
+
+class VitalUpdate(BaseModel):
+    metric: Optional[str] = None
+    value: Optional[str] = None
+    date: Optional[datetime] = None
+    status: Optional[VitalStatus] = None
+
+class VitalOut(BaseModel):
+    id: str
+    patient_id: str
+    metric: str
+    value: str
+    date: datetime
+    status: Optional[VitalStatus] = None
     class Config:
         from_attributes = True
