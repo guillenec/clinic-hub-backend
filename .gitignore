@@ -1,5 +1,4 @@
 # Entornos Virtuales (¡CRUCIAL!)
-.env
 .env.local
 /venv
 /.venv
@@ -13,3 +12,26 @@ __pycache__/
 
 # Dependencias (instaladas localmente)
 /node_modules
+
+# Entornos Virtuales
+.venv
+venv
+*.egg-info/
+build/
+dist/
+
+# Archivos de Python y Bytecode
+__pycache__/
+*.pyc
+
+# Archivos de Configuración del Editor (VS Code)
+.vscode/
+
+# Archivos Sensibles
+.env
+
+# Directorios de Migraciones (Opcional, pero recomendado)
+alembic/versions/
+
+# Logs y otros generados
+*.log
