@@ -3,44 +3,32 @@ import cloudinary.uploader
 from app.core.config import settings
 
 def setup_cloudinary():
-    if not settings.CLOUDINARY_URL:
-        raise RuntimeError("Falta CLOUDINARY_URL en variables de entorno")
-    cloudinary.config(cloudinary_url=settings.CLOUDINARY_URL, secure=True)
+    if not (settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET):
+        raise RuntimeError("Faltan CLOUDINARY_* en .env")
+    cloudinary.config(
+        cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+        api_key=settings.CLOUDINARY_API_KEY,
+        api_secret=settings.CLOUDINARY_API_SECRET,
+        secure=True,
+    )
 
 setup_cloudinary()
 
 def upload_png(file_bytes: bytes, folder: str) -> tuple[str, str]:
-    """
-    Sube PNG a Cloudinary. Devuelve (secure_url, public_id)
-    """
-    res = cloudinary.uploader.upload(
-        file_bytes,
-        folder=folder,
-        resource_type="image",
-        format="png",      # forzamos png
-        overwrite=True,
-        unique_filename=True,
-        use_filename=False,
-        tags=["clinichub"],
-        type="upload",
-        transformation=[{"quality": "auto:best"}],  # optimiza
-    )
-    return res["secure_url"], res["public_id"]
-
-def destroy(public_id: str) -> None:
-    if not public_id:
-        return
-    cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
-
-def upload_png_bg_removed(file_bytes: bytes, folder: str) -> tuple[str, str]:
     res = cloudinary.uploader.upload(
         file_bytes,
         folder=folder,
         resource_type="image",
         format="png",
-        transformation=[
-            {"effect": "background_removal"},  # requiere add-on habilitado
-            {"quality": "auto:best"}
-        ]
+        overwrite=True,
+        unique_filename=True,
+        use_filename=False,
+        tags=["clinichub"],
+        type="upload",
+        transformation=[{"quality": "auto:best"}],
     )
     return res["secure_url"], res["public_id"]
+
+def destroy(public_id: str) -> None:
+    if public_id:
+        cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)

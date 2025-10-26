@@ -7,7 +7,6 @@ from app.api.v1.doctor import router as doctor_router
 from app.api.v1.patient import router as patient_router
 from app.api.v1.appointment import router as appointment_router
 from app.api.v1.clinical import router as clinical_router
-from app.api.v1.files import router as files_router
 
 
 app = FastAPI(title="Clinic Hub API", version="0.1.0")
@@ -27,7 +26,6 @@ app.include_router(doctor_router)
 app.include_router(patient_router)
 app.include_router(appointment_router)
 app.include_router(clinical_router)
-app.include_router(files_router)
 
 
 @app.get("/health")

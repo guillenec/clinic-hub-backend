@@ -32,5 +32,10 @@ class Doctor(Base):
 
     clinics = relationship("Clinic", secondary="clinic_doctors", back_populates="doctors")
     
+    # signature_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # stamp_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    signature_png: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     signature_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    stamp_png: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     stamp_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
