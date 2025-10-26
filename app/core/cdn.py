@@ -31,3 +31,16 @@ def destroy(public_id: str) -> None:
     if not public_id:
         return
     cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
+
+def upload_png_bg_removed(file_bytes: bytes, folder: str) -> tuple[str, str]:
+    res = cloudinary.uploader.upload(
+        file_bytes,
+        folder=folder,
+        resource_type="image",
+        format="png",
+        transformation=[
+            {"effect": "background_removal"},  # requiere add-on habilitado
+            {"quality": "auto:best"}
+        ]
+    )
+    return res["secure_url"], res["public_id"]

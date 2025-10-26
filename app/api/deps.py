@@ -61,3 +61,22 @@ async def get_linked_patient_id(user: User, db: AsyncSession) -> str | None:
         return None
     res = await db.execute(select(Patient.id).where(Patient.user_id == user.id))
     return res.scalar_one_or_none()
+
+
+async def require_doctor_owner(
+    doctor_id: str,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # admin siempre tiene permiso
+    if current.role == RoleEnum.admin:
+        return
+
+    # si es doctor, debe ser su propio perfil
+    if current.role == RoleEnum.doctor:
+        res = await db.execute(select(Doctor.id).where(Doctor.user_id == current.id))
+        my_doc_id = res.scalar_one_or_none()
+        if my_doc_id == doctor_id:
+            return
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permiso denegado")

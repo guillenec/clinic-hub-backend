@@ -29,6 +29,7 @@ PyMySQL==1.1.2
 pyotp==2.9.0
 python-dotenv==1.1.1
 python-jose==3.5.0
+python-multipart==0.0.20
 PyYAML==6.0.3
 qrcode==8.2
 rsa==4.9.1

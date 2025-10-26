@@ -31,3 +31,6 @@ class Doctor(Base):
     birth_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
 
     clinics = relationship("Clinic", secondary="clinic_doctors", back_populates="doctors")
+    
+    signature_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stamp_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
