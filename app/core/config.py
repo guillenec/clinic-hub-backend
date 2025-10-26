@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "superseguro"
     DB_NAME: str = "clinic_hub"
 
+     # ... para cloudnary
+    CLOUDINARY_URL: str | None = None
+    MEDIA_FOLDER_SIGNATURES: str = "clinic-hub/signatures"
+    MEDIA_FOLDER_STAMPS: str = "clinic-hub/stamps"
+    MAX_UPLOAD_MB: int = 2
+
     @property
     def async_database_url(self) -> str:
         return (f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}"
