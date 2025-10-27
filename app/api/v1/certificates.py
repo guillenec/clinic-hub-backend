@@ -9,6 +9,9 @@ from app.core.db import get_db
 from app.schemas.certificate import CertificateCreate, CertificateUpdate, CertificateOut
 from app.models.certificate import Certificate
 from app.models.doctor import Doctor
+from app.models.patient import Patient
+from app.models.user import User
+from app.core.security import get_current_user
 from ._helpers import gen_code
 
 router = APIRouter(prefix="/clinical/certificates", tags=["Clinical - Certificates"])
@@ -73,6 +76,93 @@ async def list_certificates(
         dto.doctor = await _doctor_snapshot(db, cert.doctor_id)
         out.append(dto)
     return out
+
+@router.get("/doctor/me", response_model=List[CertificateOut])
+async def list_my_certificates(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    doc = (await db.execute(select(Doctor).where(Doctor.user_id == current_user.id))).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+
+    q = (
+        select(Certificate)
+        .where(Certificate.doctor_id == doc.id)
+        .order_by(Certificate.created_at.desc())
+        .offset(offset).limit(limit)
+    )
+
+    rows = list((await db.execute(q)).scalars().unique())
+
+    out: List[CertificateOut] = []
+    for cert in rows:
+        dto = CertificateOut.model_validate(cert, from_attributes=True)
+        dto.doctor = await _doctor_snapshot(db, cert.doctor_id)
+        out.append(dto)
+    return out
+
+
+@router.get("/patient/me", response_model=List[CertificateOut])
+async def list_certificates_by_patient_me(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    pat = (await db.execute(select(Patient).where(Patient.user_id == current_user.id))).scalar_one_or_none()
+    if not pat:
+        raise HTTPException(status_code=404, detail="Patient profile not found")
+
+    q = (
+        select(Certificate)
+        .where(Certificate.patient_id == pat.id)
+        .order_by(Certificate.created_at.desc())
+        .offset(offset).limit(limit)
+    )
+
+    rows = list((await db.execute(q)).scalars().unique())
+
+    out: List[CertificateOut] = []
+    for cert in rows:
+        dto = CertificateOut.model_validate(cert, from_attributes=True)
+        dto.doctor = await _doctor_snapshot(db, cert.doctor_id)
+        out.append(dto)
+    return out
+
+@router.get("/patient/{patient_id}", response_model=List[CertificateOut])
+async def list_certificates_by_patient(
+    patient_id: str,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Lista los certificados asociados a un paciente específico por su ID.
+    Ejemplo: GET /clinical/certificates/patient/91cd3d66-6bc4-48dd-bf70-cbb69118595
+    """
+    q = (
+        select(Certificate)
+        .where(Certificate.patient_id == patient_id)
+        .order_by(Certificate.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    rows = list((await db.execute(q)).scalars().unique())
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No certificates found for this patient")
+
+    out: List[CertificateOut] = []
+    for cert in rows:
+        dto = CertificateOut.model_validate(cert, from_attributes=True)
+        dto.doctor = await _doctor_snapshot(db, cert.doctor_id)
+        out.append(dto)
+    return out
+
 
 @router.get("/{cert_id}", response_model=CertificateOut)
 async def get_certificate(cert_id: str, db: AsyncSession = Depends(get_db)):
