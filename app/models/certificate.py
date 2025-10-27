@@ -1,31 +1,30 @@
 from __future__ import annotations
-from datetime import datetime, date
+from typing import Optional
+from datetime import date, datetime
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Text, Date, DateTime, Boolean, ForeignKey, Integer
+from sqlalchemy import String, Text, Date, DateTime, Boolean, Integer, ForeignKey
+from sqlalchemy.sql import func
 from app.core.db import Base
 
 class Certificate(Base):
     __tablename__ = "certificates"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    doctor_id: Mapped[str] = mapped_column(ForeignKey("doctors.id"), index=True)
-    patient_id: Mapped[str] = mapped_column(ForeignKey("patients.id"), index=True)
+    doctor_id:  Mapped[str] = mapped_column(String(36), ForeignKey("doctors.id"), index=True)
+    patient_id: Mapped[str] = mapped_column(String(36), ForeignKey("patients.id"), index=True)
 
     issued_date: Mapped[date] = mapped_column(Date, nullable=False)
-    type: Mapped[str] = mapped_column(String(50))
+    type:        Mapped[str]  = mapped_column(String(50))
+    reason:      Mapped[Optional[str]] = mapped_column(Text, default=None)
+    rest_days:   Mapped[Optional[int]] = mapped_column(Integer, default=None)
+    start_date:  Mapped[Optional[date]] = mapped_column(Date, default=None)
+    end_date:    Mapped[Optional[date]] = mapped_column(Date, default=None)
+    notes:       Mapped[Optional[str]] = mapped_column(Text, default=None)
 
-    reason: Mapped[str | None] = mapped_column(Text)
-    rest_days: Mapped[int | None] = mapped_column(Integer)
-    start_date: Mapped[date | None] = mapped_column(Date)
-    end_date: Mapped[date | None] = mapped_column(Date)
-    notes: Mapped[str | None] = mapped_column(Text)
+    include_signature: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
+    include_stamp:     Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="1")
 
-    include_signature: Mapped[bool] = mapped_column(Boolean, default=True)
-    include_stamp: Mapped[bool] = mapped_column(Boolean, default=True)
+    render_json: Mapped[Optional[str]] = mapped_column(Text, default=None)
+    verify_code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
 
-    # igual que arriba: a JSON si podés
-    render_json: Mapped[str | None] = mapped_column(Text)
-
-    verify_code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
+    created_at:  Mapped[datetime] = mapped_column(DateTime(), server_default=func.current_timestamp(), nullable=False)
