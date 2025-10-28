@@ -43,7 +43,7 @@ app.include_router(medications_router)
 app.include_router(labs_router)
 app.include_router(vitals_router)
 
-app.include_router(zoom_router, prefix="/zoom", tags=["zoom"])
+app.include_router(zoom_router, prefix="/api/vq", tags=["zoom"])
 app.include_router(ws_chat_router)
 
 

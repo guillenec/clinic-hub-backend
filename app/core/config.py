@@ -30,9 +30,9 @@ class Settings(BaseSettings):
     ZOOM_CLIENT_ID: str
     ZOOM_CLIENT_SECRET: str
     ZOOM_REDIRECT_URL: str
-    ZOOM_BASE_URL: str = "https://zoom.us"
-    ZOOM_API: str = "https://api.zoom.us/v2"
-    APP_NAME: str = "ClinicHub"
+    ZOOM_BASE_URL: str 
+    ZOOM_API: str 
+    APP_NAME: str 
 
     @property
     def async_database_url(self) -> str:

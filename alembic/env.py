@@ -11,7 +11,7 @@ if config.config_file_name is not None:
 
 from app.core.config import settings
 from app.core.db import Base
-import app.models  # importa tus modelos para autogenerate
+from app.models import *  # <-- importa TODO para poblar Base.metadata
 
 target_metadata = Base.metadata
 

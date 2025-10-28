@@ -11,10 +11,24 @@ from app.models.zoom import AppointmentZoom
 from datetime import datetime, timezone
 import os
 
-router = APIRouter(prefix="/api/zoom", tags=["zoom"])
+router = APIRouter(prefix="/zoom", tags=["zoom"])
+
+# @router.get("/oauth/start")
+# async def oauth_start():
+#     url = (f"{ZOOM_AUTH}"
+#            f"?response_type=code&client_id={CLIENT_ID}"
+#            f"&redirect_uri={REDIRECT_URI}")
+#     return RedirectResponse(url)
 
 @router.get("/oauth/start")
 async def oauth_start():
+    url = (f"{ZOOM_AUTH}"
+           f"?response_type=code&client_id={CLIENT_ID}"
+           f"&redirect_uri={REDIRECT_URI}")
+    return {"auth_url": url}  # <- así Swagger ya no falla
+
+@router.get("/oauth/start/redirect")
+async def oauth_start_redirect():
     url = (f"{ZOOM_AUTH}"
            f"?response_type=code&client_id={CLIENT_ID}"
            f"&redirect_uri={REDIRECT_URI}")

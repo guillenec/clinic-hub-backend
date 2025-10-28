@@ -3,6 +3,7 @@ import enum
 from datetime import datetime
 from sqlalchemy import String, Enum, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import relationship
 
 from app.core.db import Base
 
@@ -17,6 +18,12 @@ class ApptStatus(str, enum.Enum):
 
 class Appointment(Base):
     __tablename__ = "appointments"
+    zoom_meeting = relationship(
+    "AppointmentZoom",
+    backref="appointment",
+    uselist=False,
+    cascade="all, delete-orphan"
+)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 

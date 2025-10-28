@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, WebSocket, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from sqlalchemy import select
@@ -10,7 +10,6 @@ from app.models.user import User
 from app.models.doctor import Doctor
 from app.models.patient import Patient
 from app.models.user import RoleEnum
-
 
 bearer = HTTPBearer(auto_error=True)
 
@@ -116,18 +115,43 @@ async def get_current_user_from_token(token: str, db: AsyncSession) -> User:
         raise HTTPException(status_code=401, detail="Usuario no autorizado")
     return user
 
-async def get_current_user_ws(ws: WebSocket, db: AsyncSession = Depends(get_db)) -> User:
-    """
-    Lee ?token=... del query string (o header Authorization) y retorna el User.
-    """
-    token = ws.query_params.get("token")
-    if not token:
-        # fallback por si querés mandar Authorization: Bearer xxx en WebSocket
-        auth = ws.headers.get("authorization")
-        if auth and auth.lower().startswith("bearer "):
-            token = auth.split(" ", 1)[1]
-    if not token:
-        # No podés levantar HTTPException en WebSocket; cerramos con código policy violation
-        await ws.close(code=1008)
-        raise RuntimeError("WS sin token")
-    return await get_current_user_from_token(token, db)
+# async def get_current_user_ws(ws: WebSocket, db: AsyncSession = Depends(get_db)) -> User:
+#     """
+#     Lee ?token=... del query string (o header Authorization) y retorna el User.
+#     """
+#     token = ws.query_params.get("token")
+#     if not token:
+#         # fallback por si querés mandar Authorization: Bearer xxx en WebSocket
+#         auth = ws.headers.get("authorization")
+#         if auth and auth.lower().startswith("bearer "):
+#             token = auth.split(" ", 1)[1]
+#     if not token:
+#         # No podés levantar HTTPException en WebSocket; cerramos con código policy violation
+#         await ws.close(code=1008)
+#         raise RuntimeError("WS sin token")
+#     return await get_current_user_from_token(token, db)
+
+async def get_current_user_ws(
+    websocket: WebSocket,
+    token: str = Query(...),                 # ws://.../chat/{id}?token=Bearer%20XXX  o solo XXX
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    # permitir "Bearer XXX" o sólo "XXX"
+    if token.lower().startswith("bearer "):
+        token = token[7:]
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        sub = payload.get("sub")
+        if not sub:
+            raise ValueError()
+    except JWTError:
+        await websocket.close(code=4401)
+        raise HTTPException(401, "Token inválido para WebSocket")
+
+    res = await db.execute(select(User).where(User.id == sub))
+    user = res.scalar_one_or_none()
+    if not user or not user.is_active:
+        await websocket.close(code=4403)
+        raise HTTPException(403, "Usuario no autorizado")
+    return user
+
