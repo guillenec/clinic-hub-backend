@@ -14,6 +14,9 @@ from app.api.v1.clinical.consultations import router as consultations_router
 from app.api.v1.clinical.medications import router as medications_router
 from app.api.v1.clinical.labs import router as labs_router
 from app.api.v1.clinical.vitals import router as vitals_router
+from app.api.v1.zoom import router as zoom_router
+from app.api.v1.ws_chat import router as ws_chat_router
+
 
 app = FastAPI(title="Clinic Hub API", version="0.1.0")
 
@@ -39,6 +42,9 @@ app.include_router(consultations_router)
 app.include_router(medications_router)
 app.include_router(labs_router)
 app.include_router(vitals_router)
+
+app.include_router(zoom_router, prefix="/zoom", tags=["zoom"])
+app.include_router(ws_chat_router)
 
 
 @app.get("/health")

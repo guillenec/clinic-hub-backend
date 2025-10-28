@@ -8,5 +8,6 @@ from app.models.clinical import Consultation, Medication
 from app.models.labs_vitals import LabResult, Vital # 👈 nuevo
 from app.models.certificate import Certificate # 👈 nuevo
 from app.models.prescription import Prescription # 👈 nuevo
+from app.models.zoom import AppointmentZoom, ZoomToken # 👈 nuevo
 
 
