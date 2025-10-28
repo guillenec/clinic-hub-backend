@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,7 +15,18 @@ from app.schemas.clinic import ClinicCreate, ClinicOut, ClinicUpdate
 
 router = APIRouter(prefix="/clinics", tags=["clinics"])
 
-# ----------------- ya existentes -----------------
+
+# ---------- helpers ----------
+async def _get_clinic_or_404(id: str, db: AsyncSession) -> Clinic:
+    q = select(Clinic).where(Clinic.id == id)
+    c = (await db.execute(q)).scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="Clínica no encontrada")
+    return c
+
+# ---------- endpoints ----------
+
+# ---------- create ----------
 @router.post("/", response_model=ClinicOut, status_code=201, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
 async def create_clinic(payload: ClinicCreate, db: AsyncSession = Depends(get_db)):
     clinic = Clinic(**payload.model_dump())
@@ -24,6 +35,7 @@ async def create_clinic(payload: ClinicCreate, db: AsyncSession = Depends(get_db
     await db.refresh(clinic)
     return clinic
 
+# ---------- list ----------
 @router.get("/", response_model=list[ClinicOut])
 async def list_clinics(
     db: AsyncSession = Depends(get_db),
@@ -49,8 +61,7 @@ async def get_clinic(id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Clínica no encontrada")
     return c
 
-# ----------------- NUEVOS: filtros útiles -----------------
-
+# ---------- filtros útiles ----------
 # 1) Clínicas por DOCTOR (ID explícito)
 @router.get("/doctor/{doctor_id}", response_model=list[ClinicOut])
 async def list_by_doctor(
@@ -137,6 +148,7 @@ async def list_my_clinics_as_patient(
     rows = (await db.execute(q.offset(offset).limit(limit))).scalars().all()
     return rows
 
+# ---------- update ----------
 @router.put("/{id}", response_model=ClinicOut, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
 async def replace_clinic(
     id: str,
@@ -176,7 +188,7 @@ async def update_clinic(
     await db.refresh(clinic)
     return clinic
 
-
+# ---------- delete ----------
 @router.delete("/{id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
 async def delete_clinic(id: str, db: AsyncSession = Depends(get_db)):
     clinic = (await db.execute(select(Clinic).where(Clinic.id == id))).scalar_one_or_none()
@@ -185,3 +197,45 @@ async def delete_clinic(id: str, db: AsyncSession = Depends(get_db)):
 
     await db.delete(clinic)
     await db.commit()
+
+# ---------- asignaciones ----------
+@router.post("/{id}/doctors/{doctor_id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
+async def assign_doctor_to_clinic(id: str, doctor_id: str, db: AsyncSession = Depends(get_db)):
+    _ = await _get_clinic_or_404(id, db)
+    doc = (await db.execute(select(Doctor).where(Doctor.id == doctor_id))).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Doctor no encontrado")
+    exists = (await db.execute(
+        select(ClinicDoctor).where(ClinicDoctor.clinic_id == id, ClinicDoctor.doctor_id == doctor_id)
+    )).scalar_one_or_none()
+    if not exists:
+        db.add(ClinicDoctor(clinic_id=id, doctor_id=doctor_id))
+        await db.commit()
+    return
+
+@router.delete("/{id}/doctors/{doctor_id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
+async def unassign_doctor_from_clinic(id: str, doctor_id: str, db: AsyncSession = Depends(get_db)):
+    await db.execute(delete(ClinicDoctor).where(ClinicDoctor.clinic_id == id, ClinicDoctor.doctor_id == doctor_id))
+    await db.commit()
+    return
+
+@router.post("/{id}/patients/{patient_id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
+async def assign_patient_to_clinic(id: str, patient_id: str, db: AsyncSession = Depends(get_db)):
+    _ = await _get_clinic_or_404(id, db)
+    pat = (await db.execute(select(Patient).where(Patient.id == patient_id))).scalar_one_or_none()
+    if not pat:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+    exists = (await db.execute(
+        select(ClinicPatient).where(ClinicPatient.clinic_id == id, ClinicPatient.patient_id == patient_id)
+    )).scalar_one_or_none()
+    if not exists:
+        db.add(ClinicPatient(clinic_id=id, patient_id=patient_id))
+        await db.commit()
+    return
+
+
+@router.delete("/{id}/patients/{patient_id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
+async def unassign_patient_from_clinic(id: str, patient_id: str, db: AsyncSession = Depends(get_db)):
+    await db.execute(delete(ClinicPatient).where(ClinicPatient.clinic_id == id, ClinicPatient.patient_id == patient_id))
+    await db.commit()
+    return

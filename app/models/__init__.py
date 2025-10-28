@@ -6,5 +6,7 @@ from app.models.links import ClinicDoctor, ClinicPatient
 from app.models.appointment import Appointment 
 from app.models.clinical import Consultation, Medication  
 from app.models.labs_vitals import LabResult, Vital # 👈 nuevo
+from app.models.certificate import Certificate # 👈 nuevo
+from app.models.prescription import Prescription # 👈 nuevo
 
 

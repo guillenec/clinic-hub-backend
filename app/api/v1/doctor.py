@@ -24,6 +24,7 @@ async def _get_doctor_or_404(id: str, db: AsyncSession) -> Doctor:
 def _can_edit_doctor(user: User, doc: Doctor) -> bool:
     return user.role == RoleEnum.admin or (user.role == RoleEnum.doctor and doc.user_id == user.id)
 
+# ---------- create ----------
 @router.post("/", response_model=DoctorOut, status_code=201, dependencies=[Depends(require_roles(RoleEnum.admin))])
 async def create_doctor(payload: DoctorCreate, db: AsyncSession = Depends(get_db)):
     d = Doctor(**payload.model_dump())
@@ -33,6 +34,7 @@ async def create_doctor(payload: DoctorCreate, db: AsyncSession = Depends(get_db
     d = await _get_doctor_or_404(d.id, db)
     return DoctorOut.from_model(d)
 
+# --------- list ----------
 @router.get("/", response_model=list[DoctorOut])
 async def list_doctors(
     clinic_id: str | None = Query(None),
@@ -48,6 +50,7 @@ async def list_doctors(
     docs = res.scalars().unique().all()
     return [DoctorOut.from_model(d) for d in docs]
 
+# ---------- read ----------
 @router.get("/me", response_model=DoctorOut, dependencies=[Depends(require_roles(RoleEnum.doctor))])
 async def my_doctor_profile(current: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     q = select(Doctor).options(selectinload(Doctor.clinics)).where(Doctor.user_id == current.id)
@@ -62,6 +65,74 @@ async def get_doctor(id: str, db: AsyncSession = Depends(get_db)):
     d = await _get_doctor_or_404(id, db)
     return DoctorOut.from_model(d)
 
+# --- DOCTORES POR CLÍNICA (ruta explícita, además del query param que ya tenés) ---
+@router.get("/clinic/{clinic_id}", response_model=list[DoctorOut])
+async def list_doctors_by_clinic(
+    clinic_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    q = (
+        select(Doctor)
+        .join(ClinicDoctor, ClinicDoctor.doctor_id == Doctor.id)
+        .where(ClinicDoctor.clinic_id == clinic_id)
+        .options(selectinload(Doctor.clinics))
+    )
+    res = await db.execute(q.offset(offset).limit(limit))
+    docs = res.scalars().unique().all()
+    return [DoctorOut.from_model(d) for d in docs]
+
+
+# --- DOCTORES POR PACIENTE (ID explícito) ---
+# Une clínicas del paciente con clínicas de los doctores
+from app.models.links import ClinicPatient  # asegúrate de tenerlo importado en el header
+
+@router.get("/patient/{patient_id}", response_model=list[DoctorOut])
+async def list_doctors_by_patient(
+    patient_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    q = (
+        select(Doctor)
+        .join(ClinicDoctor, ClinicDoctor.doctor_id == Doctor.id)
+        .join(ClinicPatient, ClinicPatient.clinic_id == ClinicDoctor.clinic_id)
+        .where(ClinicPatient.patient_id == patient_id)
+        .options(selectinload(Doctor.clinics))
+    )
+    res = await db.execute(q.offset(offset).limit(limit))
+    docs = res.scalars().unique().all()
+    return [DoctorOut.from_model(d) for d in docs]
+
+
+# --- DOCTORES DEL PACIENTE AUTENTICADO (/doctors/patient/me) ---
+from app.models.patient import Patient
+
+@router.get("/patient/me", response_model=list[DoctorOut], dependencies=[Depends(require_roles(RoleEnum.patient))])
+async def list_my_doctors_as_patient(
+    current: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    # Buscar perfil paciente por user_id
+    pat = (await db.execute(select(Patient).where(Patient.user_id == current.id))).scalar_one_or_none()
+    if not pat:
+        return []
+    q = (
+        select(Doctor)
+        .join(ClinicDoctor, ClinicDoctor.doctor_id == Doctor.id)
+        .join(ClinicPatient, ClinicPatient.clinic_id == ClinicDoctor.clinic_id)
+        .where(ClinicPatient.patient_id == pat.id)
+        .options(selectinload(Doctor.clinics))
+    )
+    res = await db.execute(q.offset(offset).limit(limit))
+    docs = res.scalars().unique().all()
+    return [DoctorOut.from_model(d) for d in docs]
+
+# ---------- update ----------
 @router.patch("/{id}", response_model=DoctorOut)
 async def update_doctor(
     id: str,
@@ -78,13 +149,6 @@ async def update_doctor(
     d = await _get_doctor_or_404(id, db)
     return DoctorOut.from_model(d)
 
-@router.delete("/{id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
-async def delete_doctor(id: str, db: AsyncSession = Depends(get_db)):
-    await db.execute(delete(ClinicDoctor).where(ClinicDoctor.doctor_id == id))
-    await db.execute(delete(Doctor).where(Doctor.id == id))
-    await db.commit()
-    return
-
 @router.post("/{id}/clinics/{clinic_id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
 async def assign_doctor_to_clinic(id: str, clinic_id: str, db: AsyncSession = Depends(get_db)):
     _ = await _get_doctor_or_404(id, db)
@@ -98,8 +162,18 @@ async def assign_doctor_to_clinic(id: str, clinic_id: str, db: AsyncSession = De
         await db.commit()
     return
 
+# ---------- delete ----------
+@router.delete("/{id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
+async def delete_doctor(id: str, db: AsyncSession = Depends(get_db)):
+    await db.execute(delete(ClinicDoctor).where(ClinicDoctor.doctor_id == id))
+    await db.execute(delete(Doctor).where(Doctor.id == id))
+    await db.commit()
+    return
+
 @router.delete("/{id}/clinics/{clinic_id}", status_code=204, dependencies=[Depends(require_roles(RoleEnum.admin))])
 async def unassign_doctor_from_clinic(id: str, clinic_id: str, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(ClinicDoctor).where(ClinicDoctor.doctor_id == id, ClinicDoctor.clinic_id == clinic_id))
     await db.commit()
     return
+
+
