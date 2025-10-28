@@ -1,18 +1,18 @@
-# app/services/zoom_oauth.py
-import httpx, time, os
+import httpx
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.models.zoom import ZoomToken
+from app.core.config import settings  # ✅ usa tu clase Settings
 
 ZOOM_AUTH = "https://zoom.us/oauth/authorize"
 ZOOM_TOKEN = "https://zoom.us/oauth/token"
 ZOOM_API   = "https://api.zoom.us/v2"
 
-CLIENT_ID = os.environ["ZOOM_CLIENT_ID"]
-CLIENT_SECRET = os.environ["ZOOM_CLIENT_SECRET"]
-REDIRECT_URI = os.environ["ZOOM_REDIRECT_URI"]
+CLIENT_ID = settings.ZOOM_CLIENT_ID
+CLIENT_SECRET = settings.ZOOM_CLIENT_SECRET
+REDIRECT_URI = settings.ZOOM_REDIRECT_URL
 
 def basic_auth_header():
     import base64

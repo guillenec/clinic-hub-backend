@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     MEDIA_FOLDER_SIGNATURES: str = "clinic-hub/signatures"
     MEDIA_FOLDER_STAMPS: str = "clinic-hub/stamps"
 
+     # --- Zoom OAuth (añadí esto) ---
+    ZOOM_CLIENT_ID: str
+    ZOOM_CLIENT_SECRET: str
+    ZOOM_REDIRECT_URL: str
+    ZOOM_BASE_URL: str = "https://zoom.us"
+    ZOOM_API: str = "https://api.zoom.us/v2"
+    APP_NAME: str = "ClinicHub"
+
     @property
     def async_database_url(self) -> str:
         return (f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}"
