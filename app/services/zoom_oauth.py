@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 ZOOM_AUTH = "https://zoom.us/oauth/authorize"
 ZOOM_TOKEN = "https://zoom.us/oauth/token"
+ZOOM_REVOKE = "https://zoom.us/oauth/revoke"  # 👈 nuevo
 ZOOM_API   = "https://api.zoom.us/v2"
 
 CLIENT_ID = settings.ZOOM_CLIENT_ID
@@ -169,3 +170,29 @@ async def refresh_zoom_token(db, user_id: str):
 
     print("✅ Zoom token actualizado para usuario:", user_id)
     return token.access_token
+
+async def revoke_zoom_token(db: AsyncSession, user_id: str) -> dict:
+    """Intenta revocar en Zoom y borra el token localmente."""
+    res = await db.execute(select(ZoomToken).where(ZoomToken.user_id == user_id))
+    zt = res.scalar_one_or_none()
+    if not zt:
+        return {"ok": True, "revoked": False, "detail": "No había token guardado"}
+
+    # Zoom permite revocar con access_token o refresh_token. Usamos refresh_token.
+    try:
+        async with httpx.AsyncClient() as cx:
+            # Zoom espera x-www-form-urlencoded + Basic Auth
+            await cx.post(
+                ZOOM_REVOKE,
+                data={"token": zt.refresh_token},
+                headers=basic_auth_header(),
+                timeout=10.0,
+            )
+    except Exception:
+        # No bloqueamos si falla: continuamos con el borrado local.
+        pass
+
+    # Borrado local
+    await db.delete(zt)
+    await db.commit()
+    return {"ok": True, "revoked": True}

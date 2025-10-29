@@ -42,25 +42,13 @@ async def oauth_start_redirect():
            f"&redirect_uri={REDIRECT_URI}")
     return RedirectResponse(url)
 
-# @router.get("/oauth/callback", response_model=ZoomTokenOut)
-# async def oauth_cb(code: str = Query(...), db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-#     await exchange_code_for_tokens(db, user.id, code)
-#     # redirigí a tu front si querés
-#     return {"ok": True, "message": "Zoom conectado"}
-
 @router.get("/oauth/callback", response_model=ZoomTokenOut)
-async def oauth_cb(
-    code: str = Query(...),
-    db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    zt = await exchange_code_for_tokens(db, user.id, code)  # <- obtiene ZoomToken
-    return ZoomTokenOut(
-        user_id=zt.user_id,
-        access_token=zt.access_token,
-        refresh_token=zt.refresh_token,
-        expires_at=zt.expires_at,
-    )
+async def oauth_cb(code: str = Query(...), db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+    await exchange_code_for_tokens(db, user.id, code)
+    # redirigí a tu front si querés
+    return {"ok": True, "message": "Zoom conectado"}
+
+
 
 @router.post("/appointments/{appointment_id}/ensure-meeting",
              response_model=ZoomMeetingCreateResponse
