@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.db import get_db
 from app.api.deps import get_current_user
-from app.services.zoom_oauth import ZOOM_AUTH, CLIENT_ID, REDIRECT_URI, exchange_code_for_tokens, create_meeting
+from app.services.zoom_oauth import (
+    ZOOM_AUTH, CLIENT_ID, REDIRECT_URI,
+    exchange_code_for_tokens, create_meeting, refresh_zoom_token
+)
 from app.models.appointment import Appointment, ApptType
 from app.models.zoom import AppointmentZoom
 from datetime import datetime, timezone
@@ -13,6 +16,8 @@ import os
 from typing import cast
 from fastapi import HTTPException
 from app.models.doctor import Doctor
+from app.models.user import RoleEnum
+from app.models.patient import Patient
 
 
 router = APIRouter(prefix="/zoom", tags=["zoom"])
@@ -135,6 +140,7 @@ async def ensure_meeting(
 
     user_id_for_zoom = cast(str, doc.user_id)  # 👈 asegura str para el type checker
 
+    # access_token = await refresh_zoom_token(db, user_id_for_zoom)
 
     data = await create_meeting(
         db,
@@ -163,3 +169,59 @@ async def ensure_meeting(
             "passcode": z.passcode
         }
     }
+
+@router.get("/appointments/{appointment_id}/link")
+async def get_zoom_link(
+    appointment_id: str,
+    db: AsyncSession = Depends(get_db),
+    user = Depends(get_current_user),
+):
+    # 1) Traer turno
+    res = await db.execute(select(Appointment).where(Appointment.id == appointment_id))
+    ap = res.scalar_one_or_none()
+    if not ap or ap.type != ApptType.virtual:
+        raise HTTPException(404, "Turno inexistente o no virtual")
+
+    # 2) Verificar que el usuario sea participante (o admin)
+    is_admin = user.role == RoleEnum.admin
+
+    is_doctor = False
+    is_patient = False
+
+    if user.role == RoleEnum.doctor:
+        qd = await db.execute(select(Doctor.id).where(Doctor.user_id == user.id))
+        my_doc_id = qd.scalar_one_or_none()
+        is_doctor = (my_doc_id == ap.doctor_id)
+
+    if user.role == RoleEnum.patient:
+        qp = await db.execute(select(Patient.id).where(Patient.user_id == user.id))
+        my_pat_id = qp.scalar_one_or_none()
+        is_patient = (my_pat_id == ap.patient_id)
+
+    if not (is_admin or is_doctor or is_patient):
+        raise HTTPException(403, "No sos participante de este turno")
+
+    # 3) Debe existir la reunión
+    z = await db.get(AppointmentZoom, appointment_id)
+    if not z:
+        # Si querés: auto-crear sólo si doctor/admin
+        # if is_admin or is_doctor:
+        #     await ensure_meeting(appointment_id, db, user)
+        #     z = await db.get(AppointmentZoom, appointment_id)
+        # else:
+        #     raise HTTPException(400, "La reunión aún no fue creada por el doctor")
+        raise HTTPException(400, "La reunión aún no fue creada por el doctor")
+
+    # 4) Devolver link según rol
+    if is_admin or is_doctor:
+        return {
+            "role": "doctor" if is_doctor else "admin",
+            "url": z.start_url,
+            "passcode": z.passcode
+        }
+    else:
+        return {
+            "role": "patient",
+            "url": z.join_url,
+            "passcode": z.passcode
+        }

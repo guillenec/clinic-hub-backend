@@ -1,10 +1,12 @@
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.models.zoom import ZoomToken
 from app.core.config import settings  # ✅ usa tu clase Settings
+from sqlalchemy import select
+
 
 ZOOM_AUTH = "https://zoom.us/oauth/authorize"
 ZOOM_TOKEN = "https://zoom.us/oauth/token"
@@ -64,26 +66,106 @@ async def ensure_access_token(db: AsyncSession, user_id: str) -> str:
         return d["access_token"]
     return zt.access_token
 
-async def create_meeting(db: AsyncSession, user_id: str, topic: str, start_time_iso: str, duration_min: int):
-    token = await ensure_access_token(db, user_id)
+# async def create_meeting(db: AsyncSession, user_id: str, topic: str, start_time_iso: str, duration_min: int):
+#     token = await ensure_access_token(db, user_id)
+#     payload = {
+#         "topic": topic,
+#         "type": 2,  # scheduled
+#         "start_time": start_time_iso,  # ISO8601 UTC
+#         "duration": duration_min,
+#         "settings": {
+#             "waiting_room": True,
+#             "join_before_host": False,
+#             "mute_upon_entry": True,
+#             "approval_type": 0,  # automatically approve
+#             "audio": "voip",
+#             "encryption_type": "enhanced_encryption",
+#         }
+#     }
+#     async with httpx.AsyncClient() as cx:
+#         r = await cx.post(f"{ZOOM_API}/users/me/meetings",
+#                           json=payload,
+#                           headers={"Authorization": f"Bearer {token}"})
+#     if r.status_code not in (200,201):
+#         raise HTTPException(400, f"Create meeting error: {r.text}")
+#     return r.json()
+
+async def create_meeting(
+    db,
+    user_id: str,
+    topic: str,
+    start_time_iso: str,
+    duration_min: int,
+) -> dict:
+    """
+    Crea una reunión en Zoom para el user_id (host).
+    Garantiza un access_token válido haciendo refresh si hace falta.
+    """
+    # 🔐 garantizar token válido
+    access_token = await refresh_zoom_token(db, user_id)
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
     payload = {
         "topic": topic,
         "type": 2,  # scheduled
-        "start_time": start_time_iso,  # ISO8601 UTC
+        "start_time": start_time_iso,  # ISO UTC
         "duration": duration_min,
         "settings": {
+            "host_video": True,
+            "participant_video": True,
             "waiting_room": True,
             "join_before_host": False,
             "mute_upon_entry": True,
-            "approval_type": 0,  # automatically approve
-            "audio": "voip",
-            "encryption_type": "enhanced_encryption",
-        }
+            "approval_type": 0,
+        },
     }
-    async with httpx.AsyncClient() as cx:
-        r = await cx.post(f"{ZOOM_API}/users/me/meetings",
-                          json=payload,
-                          headers={"Authorization": f"Bearer {token}"})
-    if r.status_code not in (200,201):
-        raise HTTPException(400, f"Create meeting error: {r.text}")
-    return r.json()
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"https://api.zoom.us/v2/users/{user_id}/meetings",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+async def refresh_zoom_token(db, user_id: str):
+    """
+    Refresca el token de Zoom si está vencido.
+    Devuelve un access_token válido (viejo o nuevo).
+    """
+    res = await db.execute(select(ZoomToken).where(ZoomToken.user_id == user_id))
+    token = res.scalar_one_or_none()
+    if not token:
+        raise ValueError("Zoom no conectado para este usuario.")
+
+    # si faltan más de 5 minutos para vencer, devolvemos el actual
+    now = datetime.now(timezone.utc)
+    if token.expires_at > now + timedelta(minutes=5):
+        return token.access_token
+
+    # si está vencido o por vencer, pedimos uno nuevo
+    print("🔄 Refreshing Zoom token...")
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": token.refresh_token,
+    }
+    auth = (settings.ZOOM_CLIENT_ID, settings.ZOOM_CLIENT_SECRET)
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post("https://zoom.us/oauth/token", data=data, auth=auth)
+        resp.raise_for_status()
+        payload = resp.json()
+
+    token.access_token = payload["access_token"]
+    token.refresh_token = payload["refresh_token"]
+    token.expires_at = datetime.now(timezone.utc) + timedelta(seconds=payload["expires_in"])
+    await db.commit()
+    await db.refresh(token)
+
+    print("✅ Zoom token actualizado para usuario:", user_id)
+    return token.access_token
