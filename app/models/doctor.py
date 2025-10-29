@@ -23,17 +23,16 @@ class Doctor(Base):
     color: Mapped[str | None] = mapped_column(String(16), nullable=True)
     license: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    signature_png: Mapped[str | None] = mapped_column(String(255), nullable=True)  # url
-    stamp_png: Mapped[str | None] = mapped_column(String(255), nullable=True)      # url
+    # signature_png: Mapped[str | None] = mapped_column(String(255), nullable=True)  # url
+    # stamp_png: Mapped[str | None] = mapped_column(String(255), nullable=True)      # url
     photo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    photo_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     sex: Mapped[SexEnum | None] = mapped_column(Enum(SexEnum), nullable=True)
     birth_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
 
     clinics = relationship("Clinic", secondary="clinic_doctors", back_populates="doctors")
     
-    # signature_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # stamp_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     signature_png: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     signature_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

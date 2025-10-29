@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     MAX_UPLOAD_MB: int = 2
     MEDIA_FOLDER_SIGNATURES: str = "clinic-hub/signatures"
     MEDIA_FOLDER_STAMPS: str = "clinic-hub/stamps"
+    MEDIA_FOLDER_AVATARS: str = "clinic-hub/avatars"   # NUEVO (usuarios)
+    MEDIA_FOLDER_PHOTOS: str = "clinic-hub/photos"     # NUEVO (doctores/pacientes)
 
      # --- Zoom OAuth (añadí esto) ---
     ZOOM_CLIENT_ID: str

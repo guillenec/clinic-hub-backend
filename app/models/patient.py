@@ -27,6 +27,8 @@ class Patient(Base):
     insurance_member_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     photo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    photo_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     sex: Mapped[SexEnum | None] = mapped_column(Enum(SexEnum), nullable=True)
     birth_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
 

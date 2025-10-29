@@ -49,3 +49,25 @@ def upload_png_bg_removed(file_bytes: bytes, folder: str) -> tuple[str, str]:
 
 def build_url_with_bg_removal(public_id: str) -> str:
     return CloudinaryImage(public_id).build_url(effect="background_removal", format="png", secure=True)
+
+def upload_image_avatar(file_bytes: bytes, folder: str) -> tuple[str, str]:
+    """
+    Sube imagen (png/jpg) optimizada y cuadrada (1:1).
+    Si la cuenta tiene 'gravity:face' disponible, centra en el rostro.
+    """
+    res = cloudinary.uploader.upload(
+        file_bytes,
+        folder=folder,
+        resource_type="image",
+        overwrite=True,
+        unique_filename=True,
+        use_filename=False,
+        tags=["clinichub", "avatar"],
+        type="upload",
+        transformation=[
+            {"width": 512, "height": 512, "crop": "fill", "gravity": "auto"},
+            {"quality": "auto:good"},
+            {"fetch_format": "auto"}
+        ],
+    )
+    return res["secure_url"], res["public_id"]

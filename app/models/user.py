@@ -29,3 +29,5 @@ class User(Base):
     # Para 2FA (lo activaremos luego)
     is_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     twofa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    photo_public_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
