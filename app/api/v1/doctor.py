@@ -132,6 +132,39 @@ async def list_my_doctors_as_patient(
     docs = res.scalars().unique().all()
     return [DoctorOut.from_model(d) for d in docs]
 
+# --- LISTA PÚBLICA DE DOCTORES POR CLÍNICA (sin auth) ---
+@router.get("/public/clinics/{clinic_id}/doctors", response_model=list[DoctorOut])
+async def public_list_doctors_by_clinic(
+    clinic_id: str,
+    q: str | None = Query(None, description="Búsqueda por nombre/especialidad"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    # (Opcional) validar que la clínica exista
+    exists = await db.execute(select(Clinic.id).where(Clinic.id == clinic_id))
+    if not exists.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Clínica no encontrada")
+
+    stmt = (
+        select(Doctor)
+        .join(ClinicDoctor, ClinicDoctor.doctor_id == Doctor.id)
+        .where(ClinicDoctor.clinic_id == clinic_id)
+        .options(selectinload(Doctor.clinics))
+        .order_by(Doctor.name)
+        .offset(offset).limit(limit)
+    )
+
+    # Filtro simple por nombre/especialidad (opcional)
+    if q:
+        from sqlalchemy import or_
+        like = f"%{q}%"
+        stmt = stmt.where(or_(Doctor.name.ilike(like), Doctor.specialty.ilike(like)))
+
+    res = await db.execute(stmt)
+    docs = res.scalars().unique().all()
+    return [DoctorOut.from_model(d) for d in docs]
+
 # ---------- update ----------
 @router.patch("/{id}", response_model=DoctorOut)
 async def update_doctor(
