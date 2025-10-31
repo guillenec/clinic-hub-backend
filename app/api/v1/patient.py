@@ -25,14 +25,60 @@ async def _get_patient_or_404(id: str, db: AsyncSession) -> Patient:
 def _can_edit_patient(user: User, pt: Patient) -> bool:
     return user.role == RoleEnum.admin or (user.role == RoleEnum.patient and pt.user_id == user.id)
 
-@router.post("/", response_model=PatientOut, status_code=201, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
-async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
-    pt = Patient(**payload.model_dump())
-    db.add(pt)
-    await db.commit()
-    # await db.refresh(pt)
-    pt = await _get_patient_or_404(pt.id, db)
-    return PatientOut.from_model(pt)
+# @router.post("/", response_model=PatientOut, status_code=201, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
+# async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
+#     pt = Patient(**payload.model_dump())
+#     db.add(pt)
+#     await db.commit()
+#     # await db.refresh(pt)
+#     pt = await _get_patient_or_404(pt.id, db)
+#     return PatientOut.from_model(pt)
+
+@router.post("/", response_model=PatientOut, status_code=201)
+async def create_patient(
+    payload: PatientCreate,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cualquiera logueado puede crear un Patient.
+    - Si es patient: solo puede crearse a sí mismo (user_id = current.id).
+      Si ya tiene perfil, devuelve 400.
+    - Si es admin/doctor: puede crear para otro user_id (si tu esquema lo permite) o sin user_id.
+    """
+
+    # Si el usuario actual es PATIENT, fuerza el vínculo a su propio user_id
+    if current.role == RoleEnum.patient:
+        # ¿ya tiene perfil?
+        exists = await db.execute(select(Patient).where(Patient.user_id == current.id))
+        if exists.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Ya existe un perfil de paciente para este usuario.")
+
+        # Ignorá cualquier user_id que venga en el payload y forzalo al actual
+        data = payload.model_dump()
+        data["user_id"] = current.id
+
+        pt = Patient(**data)
+        db.add(pt)
+        await db.commit()
+        pt = await _get_patient_or_404(pt.id, db)
+        return PatientOut.from_model(pt)
+
+    # Si es ADMIN o DOCTOR, puede crear un paciente para otro usuario (o sin user_id si tu modelo lo admite)
+    else:
+        data = payload.model_dump()
+
+        # (Opcional) Si viene user_id, evitá duplicados de vínculo
+        if data.get("user_id"):
+            exists = await db.execute(select(Patient).where(Patient.user_id == data["user_id"]))
+            if exists.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Ese usuario ya tiene un perfil de paciente.")
+
+        pt = Patient(**data)
+        db.add(pt)
+        await db.commit()
+        pt = await _get_patient_or_404(pt.id, db)
+        return PatientOut.from_model(pt)
 
 @router.get("/", response_model=list[PatientOut], dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
 async def list_patients(

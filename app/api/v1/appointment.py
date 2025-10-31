@@ -272,6 +272,17 @@ async def update_appointment(id: str, patch: AppointmentUpdate, current: User = 
     return ap
 
 # ---------- delete ----------
+# @router.delete("/{id}", status_code=204, dependencies=[Depends(get_current_user)])
+# async def delete_appointment(id: str, current: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+#     ap = await _get_appt_or_404(id, db)
+#     my_doc_id = await _get_doctor_id_for_user(current, db)
+#     if not _can_edit(current, ap, my_doc_id):
+#         raise HTTPException(status_code=403, detail="Permiso denegado")
+
+#     await db.execute(delete(Appointment).where(Appointment.id == id))
+#     await db.commit()
+#     return
+
 @router.delete("/{id}", status_code=204, dependencies=[Depends(get_current_user)])
 async def delete_appointment(id: str, current: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     ap = await _get_appt_or_404(id, db)
@@ -279,9 +290,10 @@ async def delete_appointment(id: str, current: User = Depends(get_current_user),
     if not _can_edit(current, ap, my_doc_id):
         raise HTTPException(status_code=403, detail="Permiso denegado")
 
-    await db.execute(delete(Appointment).where(Appointment.id == id))
+    await db.delete(ap)       # respeta cascadas del ORM
     await db.commit()
     return
+
 
 # ---------- availability ----------
 @router.get("/availability", dependencies=[Depends(get_current_user)])

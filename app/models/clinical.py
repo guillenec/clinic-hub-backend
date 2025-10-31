@@ -10,7 +10,13 @@ class Consultation(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     patient_id: Mapped[str] = mapped_column(String(36), ForeignKey("patients.id"), index=True)
     doctor_id:  Mapped[str] = mapped_column(String(36), ForeignKey("doctors.id"), index=True)
-    appointment_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("appointments.id"), nullable=True)
+    # appointment_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("appointments.id"), nullable=True)
+    appointment_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("appointments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     specialty: Mapped[str] = mapped_column(String(100))
     diagnosis: Mapped[str] = mapped_column(Text)
