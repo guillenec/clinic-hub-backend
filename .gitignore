@@ -1,0 +1,37 @@
+# Entornos Virtuales (¡CRUCIAL!)
+.env.local
+/venv
+/.venv
+
+# Directorios de Python
+__pycache__/
+*.pyc
+
+# Directorios de Base de Datos/Migraciones
+/alembic/versions  # Opcional, si no quieres subir archivos de versiones de migración específicos
+
+# Dependencias (instaladas localmente)
+/node_modules
+
+# Entornos Virtuales
+.venv
+venv
+*.egg-info/
+build/
+dist/
+
+# Archivos de Python y Bytecode
+__pycache__/
+*.pyc
+
+# Archivos de Configuración del Editor (VS Code)
+.vscode/
+
+# Archivos Sensibles
+.env
+
+# Directorios de Migraciones (Opcional, pero recomendado)
+alembic/versions/
+
+# Logs y otros generados
+*.log
