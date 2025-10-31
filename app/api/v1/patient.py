@@ -11,6 +11,8 @@ from app.models.clinic import Clinic
 from app.models.links import ClinicPatient
 from app.schemas.patient import PatientCreate, PatientUpdate, PatientOut
 from app.models.doctor import Doctor
+from app.schemas.clinical import VitalOut
+from app.models.labs_vitals import Vital 
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -25,7 +27,7 @@ async def _get_patient_or_404(id: str, db: AsyncSession) -> Patient:
 def _can_edit_patient(user: User, pt: Patient) -> bool:
     return user.role == RoleEnum.admin or (user.role == RoleEnum.patient and pt.user_id == user.id)
 
-@router.post("/", response_model=PatientOut, status_code=201, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor))])
+@router.post("/", response_model=PatientOut, status_code=201, dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor, RoleEnum.patient))])
 async def create_patient(payload: PatientCreate, db: AsyncSession = Depends(get_db)):
     pt = Patient(**payload.model_dump())
     db.add(pt)
@@ -171,3 +173,26 @@ async def list_my_patients_as_doctor(
     res = await db.execute(q.offset(offset).limit(limit))
     pts = res.scalars().unique().all()
     return [PatientOut.from_model(p) for p in pts]
+
+@router.get("/{id}/vital_signs", response_model=list[VitalOut], dependencies=[Depends(require_roles(RoleEnum.admin, RoleEnum.doctor, RoleEnum.patient))])
+async def get_patient_vital_signs(id: str, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Obtener el ID del usuario (current_user es el usuario autenticado a partir del token)
+    user_id = current_user.id
+    
+    # Buscar el paciente relacionado con este usuario (el paciente tiene un user_id)
+    patient = await db.execute(select(Patient).where(Patient.user_id == user_id))
+    patient = patient.scalar_one_or_none()
+
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    # Obtener los signos vitales del paciente
+    q = select(Vital).where(Vital.patient_id == patient.id)
+    res = await db.execute(q)
+    vital_signs = res.scalars().all()
+    
+    if not vital_signs:
+        raise HTTPException(status_code=404, detail="No se encontraron signos vitales para el paciente")
+    
+    # Devolver los signos vitales como una lista de modelos Pydantic
+    return vital_signs

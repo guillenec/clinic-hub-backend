@@ -177,3 +177,23 @@ async def unassign_doctor_from_clinic(id: str, clinic_id: str, db: AsyncSession 
     return
 
 
+@router.get("/clinic/{clinic_id}/specialty/{specialty}", response_model=list[DoctorOut])
+async def list_doctors_by_clinic_and_specialty(
+    clinic_id: str,
+    specialty: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    # Selección de doctores que pertenecen a la clínica y tienen la especialidad especificada
+    q = (
+        select(Doctor)
+        .join(ClinicDoctor, ClinicDoctor.doctor_id == Doctor.id)
+        .where(ClinicDoctor.clinic_id == clinic_id)
+        .where(Doctor.specialty == specialty)  # Filtrar por especialidad
+        .options(selectinload(Doctor.clinics))
+    )
+    
+    res = await db.execute(q.offset(offset).limit(limit))
+    docs = res.scalars().unique().all()
+    return [DoctorOut.from_model(d) for d in docs]

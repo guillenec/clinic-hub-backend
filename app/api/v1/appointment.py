@@ -80,6 +80,15 @@ async def create_appointment(
             raise HTTPException(status_code=400, detail="No hay perfil doctor vinculado a este usuario")
         doctor_id = doctor_id or my_doc  # 👈 si viene None, usa el del perfil doctor
 
+    # Si el rol es paciente, obtenemos el patient_id desde el usuario actual
+    if current.role == RoleEnum.patient:
+        # Buscamos el paciente por el user_id
+        patient = await db.execute(select(Patient).filter(Patient.user_id == current.id))
+        patient_data = patient.scalar_one_or_none()
+        if not patient_data:
+            raise HTTPException(status_code=400, detail="No se encontró el perfil de paciente asociado a este usuario")
+        payload.patient_id = patient_data.id  # Asignamos el patient_id al payload    
+
     # si sigue sin haber doctor_id (ni payload ni perfil)
     if not doctor_id:
         if current.role != RoleEnum.admin:
@@ -319,3 +328,52 @@ async def availability(
 
     return slots
 
+@router.get("/patient/me/with-specialty", dependencies=[Depends(require_roles(RoleEnum.patient))])
+async def my_patient_appointments_with_specialty(
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    my_pt_id = await _get_patient_id_for_user(current, db)
+    if not my_pt_id:
+        return []
+
+    # Traemos las citas con las relaciones de doctor y clínica
+    res = await db.execute(
+        select(Appointment)
+        .options(
+            selectinload(Appointment.clinic)   # Incluye la clínica, no es necesario cargar el doctor aún
+        )
+        .where(Appointment.patient_id == my_pt_id)
+        .order_by(Appointment.starts_at)
+    )
+
+    appointments = res.scalars().all()
+
+    # Crear un nuevo objeto que combine Appointment y specialty
+    appointments_with_specialty = []
+    for appointment in appointments:
+        # Crear un objeto con los datos de Appointment
+        appointment_data = appointment.__dict__.copy()
+
+        # Buscar al doctor por su ID para obtener la especialidad
+        if appointment.doctor_id:  # Verificar que el doctor_id esté presente
+            doctor_res = await db.execute(
+                select(Doctor.specialty, Doctor.name)
+                .where(Doctor.id == appointment.doctor_id)
+            )
+            doctor_res_name = await db.execute(
+                select(Doctor.name)
+                .where(Doctor.id == appointment.doctor_id)
+            )
+            doctor = doctor_res.scalar_one_or_none()
+            doctor_name = doctor_res_name.scalar_one_or_none()
+            appointment_data['specialty'] = doctor if doctor else None
+            appointment_data['doctor_name'] = doctor_name if doctor_name else None
+            appointments_with_specialty.append(appointment_data)
+        else:
+            appointment_data['specialty'] = None
+            appointment_data['doctor_name'] = None
+
+    
+
+    return appointments_with_specialty
